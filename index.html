@@ -1,0 +1,37 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>半吊牌 · 评论区选题夹</title><link rel="stylesheet" href="style.css"></head>
+<body><header><div class="brand"><b class="logo" aria-hidden="true">“</b>半吊牌 <span>/</span> <strong>评论区选题夹</strong></div><span class="local">● 本机保存</span></header>
+<main><div class="intro"><div><h1>评论区选题夹</h1><p>从观众的原话，找到下一条视频的第一镜。</p></div><button id="add" class="primary">＋ 加入评论</button></div>
+<nav aria-label="工作台"><button data-view="single" class="active">单条视频</button><button data-view="work">话题工作台</button><button data-view="creators">博主作品</button><button data-view="saved">已存选题 <em id="savedCount">0</em></button><button data-view="notes">拍法笔记 <em id="noteCount">0</em></button></nav>
+<div id="notice" role="status" hidden></div>
+<section id="single">
+<form id="singleForm" class="single-form"><label for="singleInput"><strong>分析一条抖音视频</strong></label>
+<div class="single-input"><textarea id="singleInput" rows="2" placeholder="粘贴视频链接，或整段「复制链接」分享文字" required></textarea><button class="primary" id="singleSubmit">分析这条视频</button></div>
+<p id="singleHelp" class="small"></p></form>
+<div id="singleStatus" role="status" class="small"></div>
+<div id="singleResult" hidden><div class="single-work"><img id="singleCover" alt="" hidden referrerpolicy="no-referrer"><div><h2 id="singleName"></h2><p id="singleMeta"></p><a id="singleSource" class="ref" target="_blank" rel="noreferrer">打开原作品 ↗</a></div></div>
+<div class="single-menu"><div id="singleTabs" class="single-tabs"></div><button id="singleMore">继续读取</button></div><div id="singleItems"></div></div></section>
+<section id="work" hidden><div class="sourcebar"><div><label for="dataset">评论来源</label><select id="dataset"><option value="sample">试用样本 · 3 条作品</option><option value="mine">我的评论</option></select></div><span id="coverage"></span></div>
+<div class="layout"><aside><div class="listheading"><h2>候选话题</h2><span id="groupCount"></span></div><div class="sort"><button data-sort="hot" aria-pressed="true">讨论最多</button><button data-sort="liked" aria-pressed="false">高赞评论</button><button data-sort="easy" aria-pressed="false">最容易拍</button></div><select id="category" aria-label="筛选讨论类型"><option value="">全部讨论类型</option></select><label class="only-answered"><input id="answeredTopics" type="checkbox"> 只看博主回复过的话题</label><div id="topics"></div></aside>
+<article id="detail" aria-label="选题详情"></article></div></section>
+<section id="creators" hidden>
+<div class="sectionhead"><div><h2>博主作品</h2><p>先按评论量圈定作品，再比较点赞和博主回复。</p></div></div>
+<div class="scanbox"><form id="scanForm"><label>博主主页<input id="profileUrl" type="url" placeholder="https://www.douyin.com/user/…" required></label>
+<label>读取数量<select id="scanSize"><option>3</option><option selected>5</option><option>10</option><option>20</option></select></label><button class="primary" id="scanStart">获取作品</button></form>
+<p id="scanHelp" class="small"></p><p id="scanState" role="status" hidden></p><button id="stopScan" hidden>停止后续读取</button></div>
+<div class="workfilters">
+<label>数据来源<select id="workSource"><option value="sample">示例作品快照</option><option value="live">我获取的作品</option></select></label>
+<label>博主<select id="creatorFilter"></select></label>
+<label>排序<select id="worksOrder"><option value="comments">评论最多</option><option value="likes">点赞最高</option></select></label>
+<label>最低点赞<input id="likesMin" type="number" min="0" step="1" placeholder="不限"></label>
+<label>最低评论<input id="commentsMin" type="number" min="0" step="1" placeholder="不限"></label>
+<label>参考评论数<input id="commentsTarget" type="number" min="0" step="1" placeholder="例如 500"></label>
+<label>相近范围<select id="tolerance"><option value=".1">±10%</option><option value=".2" selected>±20%</option><option value=".5">±50%</option></select></label>
+<label class="check"><input type="checkbox" id="creatorOnly">仅看已读到博主回复</label>
+<button type="button" id="clearFilters">清除筛选</button></div>
+<div class="sectionhead"><h3 id="matches"></h3><span id="metricHint"></span></div>
+<div id="workResults"></div></section>
+<section id="saved" hidden><div class="sectionhead"><h2>已存选题</h2><span>点开卡片，继续改稿</span></div><div id="cards"></div></section>
+<section id="notes" hidden><div class="sectionhead"><div><h2>拍法笔记</h2><span>示例拍法和你自己添加的笔记</span></div><button id="addNote">＋ 新建笔记</button></div><input id="search" type="search" placeholder="搜博主、镜头或关键词"><div id="noteList"></div></section>
+</main><dialog id="inputDialog"><form id="inputForm"><div class="sectionhead"><h2>加入评论</h2><button type="button" data-close aria-label="关闭">×</button></div><p>粘贴留言，每行一条。在下一行用「作者回复：」或「回复：」补上楼中楼。</p><label>作品名<input id="inputName" required placeholder="例如：看懂面料质感"></label><label>作品链接（选填）<input id="inputUrl" type="url" placeholder="https://www.douyin.com/video/…"></label><label>评论原文<textarea id="inputRows" rows="6" required placeholder="厚毛呢面料算软硬哪种呢？&#10;作者回复：偏硬吧，厚实的面料比较不容易塌"></textarea></label><details><summary>在抖音作品页直接读取</summary><p>Chrome 打开 chrome://extensions，开启开发者模式，点「加载未打包的扩展程序」，选择本工具的 comment-pocket 文件夹。打开作品评论区，展开想看的回复，再点工具栏里的本插件。</p></details><button class="primary">分析这些评论</button></form></dialog>
+<dialog id="noteDialog"><form id="noteForm"><div class="sectionhead"><h2>新建拍法笔记</h2><button type="button" data-close aria-label="关闭">×</button></div><label>标题<input id="noteTitle" required></label><label>我的拍法<textarea id="noteBody" rows="5" required></textarea></label><button class="primary">保存笔记</button></form></dialog>
+<div id="toast" role="status" hidden></div><script src="notes.js"></script><script src="samples.js"></script><script src="analysis.js"></script><script src="work-samples.js"></script><script src="creators.js"></script><script src="video-link.js"></script><script src="single.js"></script><script src="app.js"></script></body></html>
