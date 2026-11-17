@@ -92,26 +92,57 @@ function drawDetail(g){
 }
 function saveCard(c){
  if(!c.fields.title.trim())return tell('请先写一个选题标题');
- const i=model.cards.findIndex(x=>x.key===c.key);if(i>=0)model.cards[i]=c;else model.cards.unshift(c);
+ const i=model.cards.findIndex(x=>x.key===c.key);if(i>=0)model.cards[i]={...model.cards[i],...c};else model.cards.unshift(c);
  if(persist()){tell(i>=0?'已更新选题卡':'已存入选题夹');$('savedCount').textContent=model.cards.length;return true}return false
 }
 async function copyCard(c){
  const f=c.fields;const lines=[f.title,'','第一镜　'+f.shot,'追问　'+f.ask,'','观众原话'];
  for(const r of c.evidence){lines.push('“'+r.text+'”',...r.replies.map(t=>(t.author?'作者回复　':'回复　')+t.text),r.work+' '+(isWeb(r.url)?r.url:''))}
+ for(const clip of cardClips(c.key))lines.push('','参考口播 '+spokenTime(clip.s)+' – '+spokenTime(clip.e),clip.t,spokenUrl(clip));
  if(f.note)lines.push('','关联拍法　'+f.noteTitle,f.note,f.noteUrl);
  try{await navigator.clipboard.writeText(lines.join('\n'));tell('选题卡已复制')}catch{tell('浏览器未允许复制，请选中文字复制')}
 }
+function filterSavedCards(){
+ const query=$('cardSearch').value.trim().toLowerCase();
+ const status=$('cardFilter').value;
+ let visible=0;
+ for(const card of $('cards').querySelectorAll('.savedcard')){
+  const matchesStatus=!status || status===card.querySelector('[data-status]').value;
+  const matchesText=!query || card.dataset.searchText.includes(query) ||
+   [...card.querySelectorAll('.spoken p > span')].some(quote=>quote.textContent.toLowerCase().includes(query));
+  card.hidden=!(matchesStatus && matchesText);
+  if(!card.hidden)visible++;
+ }
+ $('cardMatches').textContent=query || status ? '显示 '+visible+' / '+model.cards.length+' 张' : '共 '+model.cards.length+' 张';
+ $('noCardMatches').hidden=!model.cards.length || visible>0;
+}
+$('cardSearch').oninput=filterSavedCards;
+$('cardFilter').onchange=filterSavedCards;
 function drawCards(){
  const box=$('cards');box.replaceChildren();
- if(!model.cards.length){box.innerHTML='<p class="empty">选好话题后点「存入选题夹」，就能在这里继续编辑。</p>';return}
+ if(!model.cards.length){box.innerHTML='<p class="empty">选好话题后点「存入选题夹」，就能在这里继续编辑。</p>';filterSavedCards();return}
  for(const c of model.cards){
   const card=document.createElement('div');card.className='savedcard';const f={...c.fields};
+  const words=[f.title];
+  for(const row of c.evidence || []){
+   words.push(row.text,...(row.replies || []).map(reply=>reply.text));
+  }
+  card.dataset.searchText=words.join('\n').toLowerCase();
   card.innerHTML='<span class="small">'+(c.sample?'样本选题':'我的评论')+' · '+esc(c.date)+'</span><h3>'+esc(f.title)+'</h3>'+
    (editingCard===c.key?editor(f)+'<details><summary>查看来源与笔记</summary>'+c.evidence.map(evidenceRow).join('')+esc(f.note)+'</details>':'<p>'+esc(f.shot||'待补充第一镜')+'</p>')+
-   '<div class="actions"><button data-edit>'+(editingCard===c.key?'保存修改':'编辑')+'</button><button data-copy>复制</button></div>';
+   '<div class="actions"><select data-status aria-label="拍摄状态"><option value="planned">待拍</option><option value="filmed">已拍</option></select><button data-edit>'+(editingCard===c.key?'保存修改':'编辑')+'</button><button data-copy>复制</button></div>';
+  const status=card.querySelector('[data-status]');
+  status.value=c.status==='filmed'?'filmed':'planned';
+  status.onchange=()=>{
+   const previous=c.status;
+   c.status=status.value;
+   if(!persist()){c.status=previous;status.value=previous==='filmed'?'filmed':'planned';return}
+   filterSavedCards();
+  };
   bindFields(card,f);card.querySelector('[data-edit]').onclick=()=>{if(editingCard===c.key){if(!f.title.trim())return tell('请先写一个选题标题');saveCard({...c,fields:f});drafts.delete(c.key);editingCard=null}else editingCard=c.key;drawCards()};
-  card.querySelector('[data-copy]').onclick=()=>copyCard({...c,fields:f});box.append(card)
+  card.querySelector('[data-copy]').onclick=()=>copyCard({...c,fields:f});card.dataset.cardKey=c.key;showSpokenClips(card,c);box.append(card)
  }
+ filterSavedCards();
 }
 function drawNotes(){
  const q=$('search').value.trim().toLowerCase();const items=allNotes().filter(n=>(n.title+n.author+n.text).toLowerCase().includes(q));
@@ -155,7 +186,7 @@ $('inputForm').onsubmit=e=>{
 $('noteForm').onsubmit=e=>{e.preventDefault();model.notes.unshift({title:$('noteTitle').value.trim(),text:$('noteBody').value.trim(),author:'我的笔记',url:''});persist();$('noteDialog').close();e.target.reset();render();drawNotes()};
 $('search').oninput=drawNotes;
 async function boot(){
- render();initCreatorUI();initSingle();const key=location.hash.slice(1);if(key==='creators')changeView('creators');
+ render();initCreatorUI();initSingle();const key=location.hash.slice(1);if(/^quote-[a-f0-9-]{36}$/.test(key)&&globalThis.chrome?.storage?.session){await chooseSpokenClip(key);return}if(key==='saved'||key==='creators')changeView(key);
  if(!key.startsWith('capture-')||!globalThis.chrome?.storage?.session)return;
  const data=(await chrome.storage.session.get(key))[key];if(!data)return;
  if(data.batch)addBatch(data.batch);

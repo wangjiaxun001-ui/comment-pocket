@@ -1,4 +1,4 @@
-importScripts('collect.js','creator-reader.js','video-link.js');
+importScripts('collect.js','creator-reader.js','video-link.js','clip-data.js','clips-worker.js');
 function creatorUrl(input){
   const parsed=new URL(input);
   if(parsed.origin!=='https://www.douyin.com'||!/^\/user\/[\w-]+\/?$/.test(parsed.pathname))throw Error('请输入抖音网页版博主主页链接（www.douyin.com/user/…）。');
