@@ -1,7 +1,8 @@
 function cleanSpokenClip(c){
  if(!c||typeof c.id!=='string'||!/^\d{10,22}$/.test(c.id)||typeof c.t!=='string'||!c.t.trim()||c.t.length>5000||
  !Number.isFinite(c.s)||!Number.isFinite(c.e)||c.s<0||c.e<=c.s||c.e>86400)return null;
- return {id:c.id,s:c.s,e:c.e,t:c.t.trim(),title:String(c.title||'抖音作品').slice(0,240)}
+ return {id:c.id,s:c.s,e:c.e,t:c.t.trim(),title:String(c.title||'抖音作品').slice(0,240),
+  ...(typeof c.note==='string' && c.note.trim()?{note:c.note.trim()}: {})}
 }
 const spokenTime=n=>Math.floor(n/60)+':'+String(Math.floor(n%60)).padStart(2,'0');
 const spokenUrl=c=>'https://www.douyin.com/video/'+c.id;

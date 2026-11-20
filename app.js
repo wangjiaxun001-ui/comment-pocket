@@ -98,7 +98,7 @@ function saveCard(c){
 async function copyCard(c){
  const f=c.fields;const lines=[f.title,'','第一镜　'+f.shot,'追问　'+f.ask,'','观众原话'];
  for(const r of c.evidence){lines.push('“'+r.text+'”',...r.replies.map(t=>(t.author?'作者回复　':'回复　')+t.text),r.work+' '+(isWeb(r.url)?r.url:''))}
- for(const clip of cardClips(c.key))lines.push('','参考口播 '+spokenTime(clip.s)+' – '+spokenTime(clip.e),clip.t,spokenUrl(clip));
+ for(const clip of cardClips(c.key))lines.push('','参考口播 '+spokenTime(clip.s)+' – '+spokenTime(clip.e),clip.t,...(clip.note?['参考点　'+clip.note]:[]),spokenUrl(clip));
  if(f.note)lines.push('','关联拍法　'+f.noteTitle,f.note,f.noteUrl);
  try{await navigator.clipboard.writeText(lines.join('\n'));tell('选题卡已复制')}catch{tell('浏览器未允许复制，请选中文字复制')}
 }
@@ -109,7 +109,7 @@ function filterSavedCards(){
  for(const card of $('cards').querySelectorAll('.savedcard')){
   const matchesStatus=!status || status===card.querySelector('[data-status]').value;
   const matchesText=!query || card.dataset.searchText.includes(query) ||
-   [...card.querySelectorAll('.spoken p > span')].some(quote=>quote.textContent.toLowerCase().includes(query));
+   [...card.querySelectorAll('.spoken p > span, .spoken .referenceLabel')].some(quote=>quote.textContent.toLowerCase().includes(query));
   card.hidden=!(matchesStatus && matchesText);
   if(!card.hidden)visible++;
  }

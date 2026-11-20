@@ -10,3 +10,5 @@ nav{overflow-x:auto}nav button{white-space:nowrap}.single-form,.single-work,.sin
 .cardfilters input{flex:1 1 220px}
 .cardfilters select,.savedcard [data-status]{font:inherit;font-size:13px;color:var(--forest);background:var(--white);border:1px solid var(--line);border-radius:6px;padding:8px}
 .savedcard [data-status]{margin-right:auto}
+
+.spoken details{margin:.45em 0}.spoken .referenceLabel{cursor:pointer;color:var(--forest);white-space:pre-wrap;overflow-wrap:anywhere}.spoken textarea{display:block;width:100%;margin:.5em 0;font:inherit}

@@ -22,14 +22,37 @@ async function replaySpoken(c){
   tell(verified?'已定位到 '+spokenTime(c.s):'未能自动定位。请在原作品跳到 '+spokenTime(c.s));return verified
  }catch{tell('未能定位播放器，请打开原作品并跳到 '+spokenTime(c.s));return false}
 }
+function referenceNoteEditor(cardKey, clip){
+ const details=document.createElement('details'), label=document.createElement('summary');
+ const input=document.createElement('textarea'), save=document.createElement('button');
+ label.className='referenceLabel';
+ const refresh=()=>{label.textContent=clip.note?'参考点：'+clip.note:'＋ 记参考点'};
+ refresh();
+ input.value=clip.note||'';input.rows=2;
+ input.setAttribute('aria-label','这段口播的参考点');
+ input.placeholder='想借鉴什么？例如：开头先交代试穿了多久';
+ save.type='button';save.textContent='保存参考点';
+ save.onclick=()=>{
+  const key=clipKey(cardKey,clip),note=input.value.trim();
+  try{
+   const latest=cleanSpokenClip(JSON.parse(localStorage.getItem(key)));
+   if(!latest)return tell('这段口播已移出，请重新打开选题卡');
+   if(note)latest.note=note;else delete latest.note;
+   localStorage.setItem(key,JSON.stringify(latest));
+  }catch{return tell('参考点未能保存，请重试')}
+  clip.note=note;input.value=note;refresh();details.open=false;
+  filterSavedCards();tell(note?'参考点已保存':'参考点已清除');
+ };
+ details.append(label,input,save);return details
+}
 function showSpokenClips(box,c){
  const clips=cardClips(c.key);if(!clips.length)return;
  const area=document.createElement('section');area.className='spoken';const h=document.createElement('strong');h.textContent='参考口播 · '+clips.length+' 段';area.append(h);
  for(const clip of clips){const row=document.createElement('p'),b=document.createElement('button'),q=document.createElement('span'),meta=document.createElement('small');
  b.type='button';b.textContent='▶ '+spokenTime(clip.s);b.title='回看原视频 '+spokenTime(clip.s);b.onclick=async()=>{const ok=await replaySpoken(clip);if(ok!==undefined)meta.textContent=clip.title+' · '+(ok?'已定位到 '+spokenTime(clip.s):'未能自动定位到 '+spokenTime(clip.s))};
  q.textContent=clip.t;meta.textContent=clip.title;const remove=document.createElement('button');remove.type='button';remove.className='clipRemove';remove.textContent='移出片段';remove.onclick=()=>{
- const k=clipKey(c.key,clip);try{localStorage.removeItem(k);row.replaceChildren();const undo=document.createElement('button');undo.textContent='撤销移出';undo.onclick=()=>{try{localStorage.setItem(k,JSON.stringify(clip));drawCards()}catch{tell('恢复失败，请重试')}};row.append('片段已移出。 ',undo);h.textContent='参考口播 · '+cardClips(c.key).length+' 段'}catch{tell('移出失败，请重试')}};
- row.append(b,q,meta,remove);area.append(row)}
+ const k=clipKey(c.key,clip);try{localStorage.removeItem(k);row.replaceChildren();const undo=document.createElement('button');undo.textContent='撤销移出';undo.onclick=()=>{try{localStorage.setItem(k,JSON.stringify(clip));drawCards()}catch{tell('恢复失败，请重试')}};row.append('片段已移出。 ',undo);h.textContent='参考口播 · '+cardClips(c.key).length+' 段';filterSavedCards()}catch{tell('移出失败，请重试')}};
+ row.append(b,q,meta,referenceNoteEditor(c.key,clip),remove);area.append(row)}
  box.append(area)
 }
 async function chooseSpokenClip(key){
