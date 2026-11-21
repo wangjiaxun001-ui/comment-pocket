@@ -52,7 +52,19 @@ function showSpokenClips(box,c){
  b.type='button';b.textContent='▶ '+spokenTime(clip.s);b.title='回看原视频 '+spokenTime(clip.s);b.onclick=async()=>{const ok=await replaySpoken(clip);if(ok!==undefined)meta.textContent=clip.title+' · '+(ok?'已定位到 '+spokenTime(clip.s):'未能自动定位到 '+spokenTime(clip.s))};
  q.textContent=clip.t;meta.textContent=clip.title;const remove=document.createElement('button');remove.type='button';remove.className='clipRemove';remove.textContent='移出片段';remove.onclick=()=>{
  const k=clipKey(c.key,clip);try{localStorage.removeItem(k);row.replaceChildren();const undo=document.createElement('button');undo.textContent='撤销移出';undo.onclick=()=>{try{localStorage.setItem(k,JSON.stringify(clip));drawCards()}catch{tell('恢复失败，请重试')}};row.append('片段已移出。 ',undo);h.textContent='参考口播 · '+cardClips(c.key).length+' 段';filterSavedCards()}catch{tell('移出失败，请重试')}};
- row.append(b,q,meta,referenceNoteEditor(c.key,clip),remove);area.append(row)}
+ const copy=document.createElement('button');
+ copy.type='button';
+ copy.textContent='复制这段';
+ copy.onclick=async()=>{
+  const lines=[clip.t];
+  if(clip.note)lines.push('参考点：'+clip.note);
+  lines.push(clip.title+' · '+spokenTime(clip.s)+' – '+spokenTime(clip.e),spokenUrl(clip));
+  try{
+   await navigator.clipboard.writeText(lines.join('\n'));
+   tell('已复制这段口播和出处');
+  }catch{tell('浏览器未允许复制，请选中原话手动复制')}
+ };
+ row.append(b,q,meta,referenceNoteEditor(c.key,clip),copy,remove);area.append(row)}
  box.append(area)
 }
 async function chooseSpokenClip(key){
