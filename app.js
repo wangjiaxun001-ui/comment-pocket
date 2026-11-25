@@ -7,7 +7,7 @@ let model;
 try {model=JSON.parse(localStorage.getItem(pointer)||'{}')} catch {model={}}
 for(const k of ['batches','cards','notes','works'])if(!Array.isArray(model[k]))model[k]=[];
 let mode=model.batches.length?'mine':'sample',sort='hot',category='',active='',groups=[],tab='single',editingCard=null;
-const drafts=new Map();
+const drafts=new Map(),cardDrafts=new Map();
 const allNotes=()=>[...libraryNotes,...model.notes];
 const persist=()=>{try{localStorage.setItem(pointer,JSON.stringify(model));return true}catch{tell('当前浏览器未能保存，请先复制你的选题卡');return false}};
 let toastTimer;
@@ -66,7 +66,7 @@ function evidenceRow(r){
  return '<div class="quote">'+esc(r.text)+(Number.isFinite(r.likes)?' <small>· '+workNumber(r.likes)+' 赞</small>':'')+replies+'<div class="meta">'+anchor(r.url,r.work)+'</div></div>'
 }
 function editor(f){
- return '<div class="edit"><label>我的选题<input data-field="title" value="'+esc(f.title)+'"></label><label>第一镜怎么拍<textarea rows="2" data-field="shot" placeholder="写下人物、物件和动作">'+esc(f.shot)+'</textarea></label><label>还想追问什么<input data-field="ask" value="'+esc(f.ask)+'" placeholder="给观众或采访对象留一个问题"></label></div>';
+ return '<div class="edit"><label>我的选题<input data-field="title" value="'+esc(f.title)+'"></label><label>我的写作思路<textarea rows="3" data-field="idea" placeholder="这条想讲什么？准备借鉴哪一点？">'+esc(f.idea||'')+'</textarea></label><label>第一镜怎么拍<textarea rows="2" data-field="shot" placeholder="写下人物、物件和动作">'+esc(f.shot)+'</textarea></label><label>还想追问什么<input data-field="ask" value="'+esc(f.ask)+'" placeholder="给观众或采访对象留一个问题"></label></div>';
 }
 function bindFields(box,f){box.querySelectorAll('[data-field]').forEach(e=>e.oninput=()=>f[e.dataset.field]=e.value)}
 function drawDetail(g){
@@ -92,54 +92,76 @@ function drawDetail(g){
 }
 function saveCard(c){
  if(!c.fields.title.trim())return tell('请先写一个选题标题');
- const i=model.cards.findIndex(x=>x.key===c.key);if(i>=0)model.cards[i]={...model.cards[i],...c};else model.cards.unshift(c);
- if(persist()){tell(i>=0?'已更新选题卡':'已存入选题夹');$('savedCount').textContent=model.cards.length;return true}return false
+ const previous=model.cards;
+ const i=previous.findIndex(x=>x.key===c.key);
+ model.cards=i>=0?previous.map((item,index)=>index===i?{...item,...c}:item):[c,...previous];
+ if(!persist()){model.cards=previous;return false}
+ tell(i>=0?'已更新选题卡':'已存入选题夹');$('savedCount').textContent=model.cards.length;return true;
 }
+$('newCard').onclick=()=>{$('newCardDialog').showModal();$('newCardTitle').focus()};
+$('newCardForm').onsubmit=e=>{
+ e.preventDefault();
+ const card={key:'idea:'+crypto.randomUUID(),origin:'manual',fields:{title:$('newCardTitle').value.trim(),idea:$('newCardIdea').value.trim(),shot:$('newCardShot').value.trim(),ask:'',note:'',noteTitle:'',noteUrl:''},evidence:[],sample:false,status:'planned',date:new Date().toLocaleDateString('zh-CN')};
+ if(!saveCard(card))return;
+ $('newCardDialog').close();e.target.reset();$('cardSearch').value='';$('cardFilter').value='';$('pinnedOnly').checked=false;
+ changeView('saved');
+ const saved=[...$('cards').children].find(el=>el.dataset.cardKey===card.key);saved?.scrollIntoView({block:'center'});
+};
 async function copyCard(c){
  const f=c.fields;const lines=[f.title,'','第一镜　'+f.shot,'追问　'+f.ask,'','观众原话'];
- for(const r of c.evidence){lines.push('“'+r.text+'”',...r.replies.map(t=>(t.author?'作者回复　':'回复　')+t.text),r.work+' '+(isWeb(r.url)?r.url:''))}
+ if(f.idea)lines.splice(2,0,'我的写作思路',f.idea,'');
+ for(const r of c.evidence||[]){lines.push('“'+r.text+'”',...r.replies.map(t=>(t.author?'作者回复　':'回复　')+t.text),r.work+' '+(isWeb(r.url)?r.url:''))}
  for(const clip of cardClips(c.key))lines.push('','参考口播 '+spokenTime(clip.s)+' – '+spokenTime(clip.e),clip.t,...(clip.note?['参考点　'+clip.note]:[]),spokenUrl(clip));
  if(f.note)lines.push('','关联拍法　'+f.noteTitle,f.note,f.noteUrl);
  try{await navigator.clipboard.writeText(lines.join('\n'));tell('选题卡已复制')}catch{tell('浏览器未允许复制，请选中文字复制')}
 }
 function filterSavedCards(){
- const query=$('cardSearch').value.trim().toLowerCase();
+ const queries=$('cardSearch').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
  const status=$('cardFilter').value;
  let visible=0;
  for(const card of $('cards').querySelectorAll('.savedcard')){
   const matchesStatus=!status || status===card.querySelector('[data-status]').value;
-  const matchesText=!query || card.dataset.searchText.includes(query) ||
-   [...card.querySelectorAll('.spoken p > span, .spoken .referenceLabel')].some(quote=>quote.textContent.toLowerCase().includes(query));
-  card.hidden=!(matchesStatus && matchesText);
+  const text=card.dataset.searchText+'\n'+[...card.querySelectorAll('.spoken p > span, .spoken .referenceLabel, .spoken small')].map(quote=>quote.textContent.toLowerCase()).join('\n');
+  const matchesText=queries.every(query=>text.includes(query));
+  const matchesPin=!$('pinnedOnly').checked||card.dataset.pinned==='true';
+  card.hidden=!(matchesStatus && matchesText && matchesPin);
   if(!card.hidden)visible++;
  }
- $('cardMatches').textContent=query || status ? '显示 '+visible+' / '+model.cards.length+' 张' : '共 '+model.cards.length+' 张';
+ $('cardMatches').textContent=queries.length || status || $('pinnedOnly').checked ? '显示 '+visible+' / '+model.cards.length+' 张' : '共 '+model.cards.length+' 张';
  $('noCardMatches').hidden=!model.cards.length || visible>0;
 }
 $('cardSearch').oninput=filterSavedCards;
 $('cardFilter').onchange=filterSavedCards;
+$('pinnedOnly').onchange=filterSavedCards;
+$('clearCardFilters').onclick=()=>{$('cardSearch').value='';$('cardFilter').value='';$('pinnedOnly').checked=false;filterSavedCards()};
 function drawCards(){
  const box=$('cards');box.replaceChildren();
- if(!model.cards.length){box.innerHTML='<p class="empty">选好话题后点「存入选题夹」，就能在这里继续编辑。</p>';filterSavedCards();return}
- for(const c of model.cards){
-  const card=document.createElement('div');card.className='savedcard';const f={...c.fields};
-  const words=[f.title];
+ if(!model.cards.length){box.innerHTML='<p class="empty">有想法就点「＋ 新建选题」，也可以从评论或视频里存入选题卡。</p>';filterSavedCards();return}
+ for(const c of [...model.cards].sort((a,b)=>Number(!!b.pinned)-Number(!!a.pinned))){
+  const card=document.createElement('div');card.className='savedcard';
+  if(editingCard===c.key&&!cardDrafts.has(c.key))cardDrafts.set(c.key,{...c.fields});
+  const f=cardDrafts.get(c.key)||{...c.fields};
+  card.dataset.pinned=String(!!c.pinned);
+  const words=[...Object.values(f)];
   for(const row of c.evidence || []){
-   words.push(row.text,...(row.replies || []).map(reply=>reply.text));
+   words.push(row.text,row.work,row.url,...(row.replies || []).map(reply=>reply.text));
   }
   card.dataset.searchText=words.join('\n').toLowerCase();
-  card.innerHTML='<span class="small">'+(c.sample?'样本选题':'我的评论')+' · '+esc(c.date)+'</span><h3>'+esc(f.title)+'</h3>'+
-   (editingCard===c.key?editor(f)+'<details><summary>查看来源与笔记</summary>'+c.evidence.map(evidenceRow).join('')+esc(f.note)+'</details>':'<p>'+esc(f.shot||'待补充第一镜')+'</p>')+
-   '<div class="actions"><select data-status aria-label="拍摄状态"><option value="planned">待拍</option><option value="filmed">已拍</option></select><button data-edit>'+(editingCard===c.key?'保存修改':'编辑')+'</button><button data-copy>复制</button></div>';
+  card.innerHTML='<span class="small">'+(c.origin==='manual'?'我的灵感':c.sample?'样本选题':'我的评论')+' · '+esc(c.date)+(cardDrafts.has(c.key)?' · 修改未保存':'')+'</span><h3>'+esc(f.title)+'</h3>'+
+   (editingCard===c.key?editor(f)+'<details><summary>查看来源与笔记</summary>'+(c.evidence||[]).map(evidenceRow).join('')+esc(f.note||'')+'</details>':(f.idea?'<p class="card-idea"><b>写作思路</b><br>'+esc(f.idea)+'</p>':'')+'<p class="card-shot">'+esc(f.shot||'待补充第一镜')+'</p>')+
+   '<div class="actions"><button data-pin aria-pressed="'+!!c.pinned+'">'+(c.pinned?'已置顶':'置顶')+'</button><select data-status aria-label="拍摄状态"><option value="planned">待拍</option><option value="filmed">已拍</option></select><button data-edit>'+(editingCard===c.key?'保存修改':'编辑')+'</button><button data-copy>复制</button></div>';
   const status=card.querySelector('[data-status]');
   status.value=c.status==='filmed'?'filmed':'planned';
   status.onchange=()=>{
-   const previous=c.status;
-   c.status=status.value;
-   if(!persist()){c.status=previous;status.value=previous==='filmed'?'filmed':'planned';return}
+   const current=model.cards.find(item=>item.key===c.key);
+   if(!saveCard({...current,status:status.value})){status.value=current.status==='filmed'?'filmed':'planned';return}
    filterSavedCards();
   };
-  bindFields(card,f);card.querySelector('[data-edit]').onclick=()=>{if(editingCard===c.key){if(!f.title.trim())return tell('请先写一个选题标题');saveCard({...c,fields:f});drafts.delete(c.key);editingCard=null}else editingCard=c.key;drawCards()};
+  card.querySelector('[data-pin]').onclick=()=>{
+   const current=model.cards.find(item=>item.key===c.key);
+   if(saveCard({...current,pinned:!current.pinned})){drawCards();tell(current.pinned?'已取消置顶':'已置顶')}
+  };
+  bindFields(card,f);card.querySelector('[data-edit]').onclick=()=>{if(editingCard===c.key){if(!f.title.trim())return tell('请先写一个选题标题');const current=model.cards.find(item=>item.key===c.key);if(!saveCard({...current,fields:{...f}}))return;drafts.delete(c.key);cardDrafts.delete(c.key);editingCard=null}else editingCard=c.key;drawCards()};
   card.querySelector('[data-copy]').onclick=()=>copyCard({...c,fields:f});card.dataset.cardKey=c.key;showSpokenClips(card,c);box.append(card)
  }
  filterSavedCards();

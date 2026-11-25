@@ -12,3 +12,8 @@ nav{overflow-x:auto}nav button{white-space:nowrap}.single-form,.single-work,.sin
 .savedcard [data-status]{margin-right:auto}
 
 .spoken details{margin:.45em 0}.spoken .referenceLabel{cursor:pointer;color:var(--forest);white-space:pre-wrap;overflow-wrap:anywhere}.spoken textarea{display:block;width:100%;margin:.5em 0;font:inherit}
+
+/* Saved ideas remain readable with long scripts and on small screens. */
+.savedcard{min-width:0;overflow-wrap:anywhere}.card-idea,.card-shot{white-space:pre-wrap}.card-idea{background:#f0f3e8;padding:10px;border-radius:6px;margin-top:10px;font-size:14px}
+.savedcard .actions{flex-wrap:wrap;justify-content:flex-start}.savedcard [data-pin][aria-pressed=true]{background:var(--sage);border-color:#9caf8b;color:var(--forest)}
+.cardfilters .pin-filter{display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:13px}.cardfilters .pin-filter input{width:auto;flex:none;margin:0}
