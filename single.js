@@ -49,7 +49,7 @@ function oneClickSave(item,button){
  const fields=initialDraft(group);
  if(!group.rule)fields.title=item.title;
  const key='single:'+info.url+'#'+item.key;
- if(model.cards.some(c=>c.key===key)){changeView('saved');return}
+ if(model.cards.some(c=>c.key===key)){openSavedCard(key);return}
  const card={key,fields,evidence:roots,sample:false,date:new Date().toLocaleDateString('zh-CN')};
  if(saveCard(card))button.textContent='已保存 · 查看'
 }

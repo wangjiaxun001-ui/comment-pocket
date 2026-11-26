@@ -17,3 +17,5 @@ nav{overflow-x:auto}nav button{white-space:nowrap}.single-form,.single-work,.sin
 .savedcard{min-width:0;overflow-wrap:anywhere}.card-idea,.card-shot{white-space:pre-wrap}.card-idea{background:#f0f3e8;padding:10px;border-radius:6px;margin-top:10px;font-size:14px}
 .savedcard .actions{flex-wrap:wrap;justify-content:flex-start}.savedcard [data-pin][aria-pressed=true]{background:var(--sage);border-color:#9caf8b;color:var(--forest)}
 .cardfilters .pin-filter{display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:13px}.cardfilters .pin-filter input{width:auto;flex:none;margin:0}
+
+.cardexports{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}.cardexports button:disabled{opacity:.5;cursor:default}.cardexports .small{flex:1 1 280px}.savedcard [data-archive]{font-weight:400;color:var(--muted)}

@@ -66,12 +66,46 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   assert.match(await card(key).innerText(),/四套搭配/);assert.match(await card('a').innerText(),/裤脚落在鞋面/);
   await card('a').locator('[data-copy]').click();assert.match(await page.evaluate(()=>copied),/近景解释鞋裤关系/);
   await card(key).locator('[data-pin]').click();assert.equal(await card(key).locator('[data-pin]').getAttribute('aria-pressed'),'false');
+  // Archive saves the in-progress draft and retains sources, pin, status and clips.
+  await card('a').locator('[data-edit]').click();await card('a').locator('[data-field=idea]').fill('先解释裤脚，再展示鞋型');
+  await card('a').locator('[data-archive]').click();assert.equal(await card('a').isVisible(),false);
+  assert.equal(await page.locator('.savedcard:visible').count(),2);
+  await page.reload();await page.locator('[data-view=saved]').click();assert.equal(await card('a').isVisible(),false);
+  await page.locator('#cardShelf').selectOption('archived');assert.equal(await card('a').isVisible(),true);
+  assert.match(await card('a').innerText(),/先解释裤脚/);assert.match(await card('a').innerText(),/裤脚落在鞋面/);
+  await page.locator('#copyVisibleCards').click();
+  const archivedCopy=await page.evaluate(()=>copied);assert.match(archivedCopy,/参考点/);assert.doesNotMatch(archivedCopy,/牛仔外套穿搭/);
+  await card('a').locator('[data-archive]').click();assert.equal(await card('a').isVisible(),false);
+  assert.equal(await page.locator('#downloadVisibleCards').isDisabled(),true);
+  await page.locator('#cardShelf').selectOption('active');assert.equal(await cards.first().getAttribute('data-card-key'),'a');
+  assert.equal(await card('a').locator('[data-pin]').getAttribute('aria-pressed'),'true');
+  // Failed archive must not hide the card or discard the user's text.
+  await card('a').locator('[data-edit]').click();await card('a').locator('[data-field=idea]').fill('保留未保存的导出修改');
+  await page.evaluate(()=>{window.realSet=Storage.prototype.setItem;Storage.prototype.setItem=function(){throw Error('full')}});
+  await card('a').locator('[data-archive]').click();assert.equal(await card('a').isVisible(),true);
+  assert.equal(await card('a').locator('[data-field=idea]').inputValue(),'保留未保存的导出修改');
+  await page.evaluate(()=>{Storage.prototype.setItem=window.realSet});
+  // Export follows the combined filter and includes the latest draft without changing storage.
+  await page.locator('#pinnedOnly').check();await page.locator('#cardFilter').selectOption('planned');
+  await page.locator('#cardSearch').fill('裤脚');
+  await page.locator('#copyVisibleCards').click();const exported=await page.evaluate(()=>copied);
+  assert.match(exported,/保留未保存的导出修改/);assert.match(exported,/https:\/\/www.douyin.com\/video\/7701656133378788644/);
+  assert.doesNotMatch(exported,/牛仔外套穿搭|同一条牛仔裤/);
+  assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('bandiaopai-pocket-v1')).cards.find(c=>c.key==='a').fields.idea),'先解释裤脚，再展示鞋型');
+  const downloadEvent=page.waitForEvent('download');await page.locator('#downloadVisibleCards').click();
+  const download=await downloadEvent;assert.match(download.suggestedFilename(),/1张\.txt$/);
+  const stream=await download.createReadStream(),chunks=[];for await(const chunk of stream)chunks.push(chunk);
+  assert.equal(Buffer.concat(chunks).toString('utf8').replace(/^\uFEFF/,'').trim(),exported.trim());
+  await page.locator('#cardSearch').fill('没有这个关键词');assert.equal(await page.locator('#copyVisibleCards').isDisabled(),true);
+  await page.locator('#clearCardFilters').click();await card('a').locator('[data-edit]').click();
+  await page.reload();await page.locator('[data-view=saved]').click();
+  assert.equal(await page.locator('.savedcard:visible').count(),3);assert.match(await card('a').innerText(),/保留未保存的导出修改/);
   assert.deepEqual(errors,[]);
   if(process.env.SCREENSHOT)await page.screenshot({path:process.env.SCREENSHOT,fullPage:true});
   await page.setViewportSize({width:390,height:844});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.locator('#newCard').click();assert.equal(await page.locator('#newCardTitle').isVisible(),true);
   assert.deepEqual(errors,[]);
-  console.log('PASS new idea, whitespace rejection, pin/filter, full-text search, edit retention, failed-save recovery, copy, refresh, old clips and mobile layout');
+  console.log('PASS new idea, whitespace rejection, pin/filter, full-text search, edit retention, failed-save recovery, copy, refresh, old clips mobile layout, archive/restore, filtered copy and TXT download');
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "半吊牌 · 评论区选题夹",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "从已加载的抖音评论找选题，关联拍法笔记，在本机编辑和收藏。",
   "permissions": [
     "activeTab",

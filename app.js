@@ -87,7 +87,7 @@ function drawDetail(g){
  const idx=allNotes().findIndex(n=>n.text===f.note);select.value=idx<0?'':String(idx);
  select.onchange=()=>{const n=select.value!==''?allNotes()[Number(select.value)]:null;Object.assign(f,{note:n?.text||'',noteTitle:n?.title||'',noteUrl:n?.url||''});showNote()};
  showNote();bindFields($('detail'),f);$('jump').onclick=()=>$('detail').querySelector('[data-field=shot]').focus();
- const makeCard=()=>({key:groupKey(g),fields:{...f},sample:mode==='sample',evidence:g.rows.map(r=>({...r})),date:new Date().toLocaleDateString('zh-CN')});
+ const makeCard=()=>({key:groupKey(g),fields:{...f},archived:false,sample:mode==='sample',evidence:g.rows.map(r=>({...r})),date:new Date().toLocaleDateString('zh-CN')});
  $('save').onclick=()=>saveCard(makeCard());$('copy').onclick=()=>copyCard(makeCard());
 }
 function saveCard(c){
@@ -103,36 +103,67 @@ $('newCardForm').onsubmit=e=>{
  e.preventDefault();
  const card={key:'idea:'+crypto.randomUUID(),origin:'manual',fields:{title:$('newCardTitle').value.trim(),idea:$('newCardIdea').value.trim(),shot:$('newCardShot').value.trim(),ask:'',note:'',noteTitle:'',noteUrl:''},evidence:[],sample:false,status:'planned',date:new Date().toLocaleDateString('zh-CN')};
  if(!saveCard(card))return;
- $('newCardDialog').close();e.target.reset();$('cardSearch').value='';$('cardFilter').value='';$('pinnedOnly').checked=false;
- changeView('saved');
- const saved=[...$('cards').children].find(el=>el.dataset.cardKey===card.key);saved?.scrollIntoView({block:'center'});
+ $('newCardDialog').close();e.target.reset();openSavedCard(card.key);
 };
-async function copyCard(c){
- const f=c.fields;const lines=[f.title,'','第一镜　'+f.shot,'追问　'+f.ask,'','观众原话'];
- if(f.idea)lines.splice(2,0,'我的写作思路',f.idea,'');
- for(const r of c.evidence||[]){lines.push('“'+r.text+'”',...r.replies.map(t=>(t.author?'作者回复　':'回复　')+t.text),r.work+' '+(isWeb(r.url)?r.url:''))}
- for(const clip of cardClips(c.key))lines.push('','参考口播 '+spokenTime(clip.s)+' – '+spokenTime(clip.e),clip.t,...(clip.note?['参考点　'+clip.note]:[]),spokenUrl(clip));
- if(f.note)lines.push('','关联拍法　'+f.noteTitle,f.note,f.noteUrl);
- try{await navigator.clipboard.writeText(lines.join('\n'));tell('选题卡已复制')}catch{tell('浏览器未允许复制，请选中文字复制')}
+function openSavedCard(key){
+ const current=model.cards.find(c=>c.key===key);
+ $('cardShelf').value=current?.archived?'archived':'active';
+ $('cardSearch').value='';$('cardFilter').value='';$('pinnedOnly').checked=false;
+ changeView('saved');
+ [...$('cards').children].find(el=>el.dataset.cardKey===key)?.scrollIntoView({block:'center'});
 }
+async function copyCard(c){
+ try{await navigator.clipboard.writeText(formatTopicCard(c,cardClips(c.key)));tell('选题卡已复制')}catch{tell('浏览器未允许复制，请选中文字复制')}
+}
+function visibleTopicCards(){
+ const byKey=new Map(model.cards.map(c=>[c.key,c]));
+ return [...$('cards').querySelectorAll('.savedcard')].filter(el=>!el.hidden).map(el=>{
+  const c=byKey.get(el.dataset.cardKey);
+  return c?{...c,fields:cardDrafts.get(c.key)||c.fields}:null;
+ }).filter(Boolean);
+}
+$('copyVisibleCards').onclick=async()=>{
+ const cards=visibleTopicCards();if(!cards.length)return tell('当前没有可复制的选题');
+ try{await navigator.clipboard.writeText(formatTopicCards(cards,cardClips));tell('已复制当前 '+cards.length+' 张选题卡')}catch{tell('复制失败，可使用旁边的「下载 TXT」')}
+};
+$('downloadVisibleCards').onclick=()=>{
+ const cards=visibleTopicCards();if(!cards.length)return tell('当前没有可下载的选题');
+ const text=formatTopicCards(cards,cardClips)+'\n';
+ const url=URL.createObjectURL(new Blob(['\uFEFF',text],{type:'text/plain;charset=utf-8'}));
+ const a=document.createElement('a'),date=new Date();
+ a.href=url;a.download='半吊牌选题-'+date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0')+'-'+cards.length+'张.txt';
+ document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+ tell('已生成 '+cards.length+' 张选题卡的 TXT');
+};
 function filterSavedCards(){
  const queries=$('cardSearch').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
  const status=$('cardFilter').value;
+ const archived=$('cardShelf').value==='archived';
+ const total=model.cards.filter(c=>!!c.archived===archived).length;
+ $('cardShelf').options[0].textContent='使用中（'+model.cards.filter(c=>!c.archived).length+'）';
+ $('cardShelf').options[1].textContent='已归档（'+model.cards.filter(c=>c.archived).length+'）';
  let visible=0;
  for(const card of $('cards').querySelectorAll('.savedcard')){
   const matchesStatus=!status || status===card.querySelector('[data-status]').value;
   const text=card.dataset.searchText+'\n'+[...card.querySelectorAll('.spoken p > span, .spoken .referenceLabel, .spoken small')].map(quote=>quote.textContent.toLowerCase()).join('\n');
   const matchesText=queries.every(query=>text.includes(query));
   const matchesPin=!$('pinnedOnly').checked||card.dataset.pinned==='true';
-  card.hidden=!(matchesStatus && matchesText && matchesPin);
+  const matchesShelf=(card.dataset.archived==='true')===archived;
+  card.hidden=!(matchesStatus && matchesText && matchesPin && matchesShelf);
   if(!card.hidden)visible++;
  }
- $('cardMatches').textContent=queries.length || status || $('pinnedOnly').checked ? '显示 '+visible+' / '+model.cards.length+' 张' : '共 '+model.cards.length+' 张';
+ $('cardMatches').textContent=(archived?'已归档':'使用中')+' · '+(queries.length || status || $('pinnedOnly').checked ? '显示 '+visible+' / '+total+' 张' : '共 '+total+' 张');
  $('noCardMatches').hidden=!model.cards.length || visible>0;
+ $('noCardMatches').textContent=total?'没有符合条件的选题，可以清除筛选后再找。':archived?'还没有归档的选题。暂时不拍的卡片可以归档，需要时再恢复。':'使用中的选题已收好，可以新建选题，或从「已归档」里恢复。';
+ $('copyVisibleCards').disabled=$('downloadVisibleCards').disabled=!visible;
+ $('copyVisibleCards').textContent='复制当前 '+visible+' 张';
+ const dirty=visibleTopicCards().some(c=>cardDrafts.has(c.key));
+ $('exportHint').textContent=dirty?'复制和下载包含当前未保存的修改；回到卡片点「保存修改」可保存在选题库。':'复制或下载当前筛选结果，包含写作思路、参考口播和出处。';
 }
 $('cardSearch').oninput=filterSavedCards;
 $('cardFilter').onchange=filterSavedCards;
 $('pinnedOnly').onchange=filterSavedCards;
+$('cardShelf').onchange=filterSavedCards;
 $('clearCardFilters').onclick=()=>{$('cardSearch').value='';$('cardFilter').value='';$('pinnedOnly').checked=false;filterSavedCards()};
 function drawCards(){
  const box=$('cards');box.replaceChildren();
@@ -142,6 +173,7 @@ function drawCards(){
   if(editingCard===c.key&&!cardDrafts.has(c.key))cardDrafts.set(c.key,{...c.fields});
   const f=cardDrafts.get(c.key)||{...c.fields};
   card.dataset.pinned=String(!!c.pinned);
+  card.dataset.archived=String(!!c.archived);
   const words=[...Object.values(f)];
   for(const row of c.evidence || []){
    words.push(row.text,row.work,row.url,...(row.replies || []).map(reply=>reply.text));
@@ -149,7 +181,7 @@ function drawCards(){
   card.dataset.searchText=words.join('\n').toLowerCase();
   card.innerHTML='<span class="small">'+(c.origin==='manual'?'我的灵感':c.sample?'样本选题':'我的评论')+' · '+esc(c.date)+(cardDrafts.has(c.key)?' · 修改未保存':'')+'</span><h3>'+esc(f.title)+'</h3>'+
    (editingCard===c.key?editor(f)+'<details><summary>查看来源与笔记</summary>'+(c.evidence||[]).map(evidenceRow).join('')+esc(f.note||'')+'</details>':(f.idea?'<p class="card-idea"><b>写作思路</b><br>'+esc(f.idea)+'</p>':'')+'<p class="card-shot">'+esc(f.shot||'待补充第一镜')+'</p>')+
-   '<div class="actions"><button data-pin aria-pressed="'+!!c.pinned+'">'+(c.pinned?'已置顶':'置顶')+'</button><select data-status aria-label="拍摄状态"><option value="planned">待拍</option><option value="filmed">已拍</option></select><button data-edit>'+(editingCard===c.key?'保存修改':'编辑')+'</button><button data-copy>复制</button></div>';
+   '<div class="actions"><button data-pin aria-pressed="'+!!c.pinned+'">'+(c.pinned?'已置顶':'置顶')+'</button><select data-status aria-label="拍摄状态"><option value="planned">待拍</option><option value="filmed">已拍</option></select><button data-edit>'+(editingCard===c.key?'保存修改':'编辑')+'</button><button data-copy>复制</button><button data-archive>'+(c.archived?'恢复选题':'归档')+'</button></div>';
   const status=card.querySelector('[data-status]');
   status.value=c.status==='filmed'?'filmed':'planned';
   status.onchange=()=>{
@@ -160,6 +192,14 @@ function drawCards(){
   card.querySelector('[data-pin]').onclick=()=>{
    const current=model.cards.find(item=>item.key===c.key);
    if(saveCard({...current,pinned:!current.pinned})){drawCards();tell(current.pinned?'已取消置顶':'已置顶')}
+  };
+  card.querySelector('[data-archive]').onclick=()=>{
+   const current=model.cards.find(item=>item.key===c.key);
+   // Save an in-progress edit together with the archive action; never drop its text.
+   const fields=cardDrafts.get(c.key)||current.fields;
+   if(!saveCard({...current,fields:{...fields},archived:!current.archived}))return;
+   cardDrafts.delete(c.key);drafts.delete(c.key);if(editingCard===c.key)editingCard=null;
+   drawCards();tell(current.archived?'已恢复到使用中':'已归档，可在「已归档」中恢复');
   };
   bindFields(card,f);card.querySelector('[data-edit]').onclick=()=>{if(editingCard===c.key){if(!f.title.trim())return tell('请先写一个选题标题');const current=model.cards.find(item=>item.key===c.key);if(!saveCard({...current,fields:{...f}}))return;drafts.delete(c.key);cardDrafts.delete(c.key);editingCard=null}else editingCard=c.key;drawCards()};
   card.querySelector('[data-copy]').onclick=()=>copyCard({...c,fields:f});card.dataset.cardKey=c.key;showSpokenClips(card,c);box.append(card)

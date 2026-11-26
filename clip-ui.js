@@ -74,16 +74,17 @@ async function chooseSpokenClip(key){
  if(!clip){tell('这次口播选择已失效，请回拾句重新选择。');return}
  $('spokenPreview').textContent=spokenTime(clip.s)+' – '+spokenTime(clip.e)+'　'+clip.t;
  $('spokenSource').textContent=clip.title;select.replaceChildren(new Option('请选择已有的选题卡',''));
+ const available=model.cards.filter(c=>!c.archived);
  const related=c=>c.evidence?.some(r=>String(r.url||'').includes(clip.id));
- for(const c of [...model.cards].sort((a,b)=>Number(related(b))-Number(related(a))))select.add(new Option((related(c)?'同一作品 · ':'')+c.fields.title,c.key));
- hint.textContent=model.cards.length?'只保存这段原话、时间和作品来源。':'这里还没有已存选题。先存一张选题卡，再回拾句加入片段。';
+ for(const c of [...available].sort((a,b)=>Number(related(b))-Number(related(a))))select.add(new Option((related(c)?'同一作品 · ':'')+c.fields.title,c.key));
+ hint.textContent=available.length?'只保存这段原话、时间和作品来源。':'这里还没有使用中的选题。先新建或恢复一张卡，再回拾句加入片段。';
  save.disabled=true;select.onchange=()=>{save.disabled=!select.value};
  dlg.onclose=()=>{chrome.storage.session.remove(key);history.replaceState(null,'',location.pathname+'#saved')};
  save.onclick=()=>{const target=select.value;try{const latest=JSON.parse(localStorage.getItem(pointer)||'{}');
- if(!latest.cards?.some(c=>c.key===target))return tell('这张卡已不存在，请重新选择。');
+ if(!latest.cards?.some(c=>c.key===target&&!c.archived))return tell('这张卡已不存在或已归档，请重新选择。');
  const k=clipKey(target,clip),exists=localStorage.getItem(k)!==null;
  if(!exists)localStorage.setItem(k,JSON.stringify(clip));
- dlg.close();drawCards();const el=[...$('cards').children].find(x=>x.dataset.cardKey===target);el?.scrollIntoView({block:'center'});tell(exists?'这段口播已在卡里':'已加入选题卡')}
+ dlg.close();openSavedCard(target);tell(exists?'这段口播已在卡里':'已加入选题卡')}
  catch{hint.textContent='保存失败，请确认本机存储空间后重试。'}};
  dlg.showModal()
 }
